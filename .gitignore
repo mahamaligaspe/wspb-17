@@ -1,0 +1,19 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# Env files (never commit secrets)
+.env
+.env.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# In case npm install is ever run from the repo root by mistake
+/node_modules
