@@ -27,11 +27,11 @@ function parseNewExpense(body: unknown): NewExpense | null {
 // (e.g. "/" is GET /api/expenses, "/:id" is GET /api/expenses/:id).
 export const expenseRouter = Router();
 
-expenseRouter.get("/", (_req, res) => {
-	res.json(getExpenses());
+expenseRouter.get("/", async (_req, res) => {
+	res.json(await getExpenses());
 });
 
-expenseRouter.post("/", (req, res) => {
+expenseRouter.post("/", async (req, res) => {
 	const newExpense = parseNewExpense(req.body);
 	if (!newExpense) {
 		res
@@ -40,11 +40,11 @@ expenseRouter.post("/", (req, res) => {
 		return;
 	}
 
-	const expense = addExpense(newExpense);
+	const expense = await addExpense(newExpense);
 	res.status(201).json(expense);
 });
 
-expenseRouter.put("/:id", (req, res) => {
+expenseRouter.put("/:id", async (req, res) => {
 	const update = parseNewExpense(req.body);
 	if (!update) {
 		res
@@ -53,7 +53,7 @@ expenseRouter.put("/:id", (req, res) => {
 		return;
 	}
 
-	const expense = updateExpense(req.params.id, update);
+	const expense = await updateExpense(req.params.id, update);
 	if (!expense) {
 		res.status(404).json({ error: "Expense not found" });
 		return;
@@ -61,8 +61,8 @@ expenseRouter.put("/:id", (req, res) => {
 	res.json(expense);
 });
 
-expenseRouter.delete("/:id", (req, res) => {
-	const deleted = deleteExpense(req.params.id);
+expenseRouter.delete("/:id", async (req, res) => {
+	const deleted = await deleteExpense(req.params.id);
 	if (!deleted) {
 		res.status(404).json({ error: "Expense not found" });
 		return;
