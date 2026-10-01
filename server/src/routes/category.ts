@@ -22,29 +22,29 @@ function parseNewCategory(body: unknown): NewCategory | null {
 // Mounted at /api/categories in app.ts, so routes here are relative.
 export const categoryRouter = Router();
 
-categoryRouter.get("/", (_req, res) => {
-	res.json(getCategories());
+categoryRouter.get("/", async (_req, res) => {
+	res.json(await getCategories());
 });
 
-categoryRouter.post("/", (req, res) => {
+categoryRouter.post("/", async (req, res) => {
 	const newCategory = parseNewCategory(req.body);
 	if (!newCategory) {
 		res.status(400).json({ error: "name is required" });
 		return;
 	}
 
-	const category = addCategory(newCategory);
+	const category = await addCategory(newCategory);
 	res.status(201).json(category);
 });
 
-categoryRouter.put("/:id", (req, res) => {
+categoryRouter.put("/:id", async (req, res) => {
 	const update = parseNewCategory(req.body);
 	if (!update) {
 		res.status(400).json({ error: "name is required" });
 		return;
 	}
 
-	const category = updateCategory(req.params.id, update);
+	const category = await updateCategory(req.params.id, update);
 	if (!category) {
 		res.status(404).json({ error: "Category not found" });
 		return;
@@ -52,8 +52,8 @@ categoryRouter.put("/:id", (req, res) => {
 	res.json(category);
 });
 
-categoryRouter.delete("/:id", (req, res) => {
-	const deleted = deleteCategory(req.params.id);
+categoryRouter.delete("/:id", async (req, res) => {
+	const deleted = await deleteCategory(req.params.id);
 	if (!deleted) {
 		res.status(404).json({ error: "Category not found" });
 		return;
