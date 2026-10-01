@@ -3,6 +3,15 @@ services:
     build: ./server
     ports:
       - "3001:3001"
+    environment:
+      PGHOST: db
+      PGPORT: 5432
+      PGUSER: app
+      PGPASSWORD: app_pw
+      PGDATABASE: app_db
+    depends_on:
+      db:
+        condition: service_healthy
 
   client:
     build: ./client
