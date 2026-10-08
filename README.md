@@ -112,6 +112,28 @@ npm test            # run every test once (what CI will run)
 npm run test:watch  # re-run on every save while writing tests
 ```
 
+### End-to-end tests (Playwright)
+
+The E2E tests in `client/e2e/` drive a real Chromium browser through the whole running system (browser → client → server → database): a smoke test that the app loads, an expense journey (add, edit, delete) and a category journey (add, delete). They need the whole stack up.
+
+Once, from inside `client/`, install the dependencies and Playwright's own pinned browser:
+
+```
+npm install
+npx playwright install chromium   # add --with-deps on a fresh Linux machine
+```
+
+Then:
+
+```
+docker compose up -d
+cd client
+npm run test:e2e             # headless
+npm run test:e2e -- --ui     # watch the browser step by step
+```
+
+The tests target `http://localhost:8080` by default; set `E2E_BASE_URL` to run the same tests against another environment (e.g. staging).
+
 ## Linting
 
 [Biome](https://biomejs.dev/) handles both linting and formatting — there's no separate Prettier/ESLint setup. `client/` and `server/` each have their own `biome.json`, so they can drift independently as the course progresses; there's no shared/root config to keep in sync.
