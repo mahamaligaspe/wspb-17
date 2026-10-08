@@ -3,7 +3,7 @@ import type { Expense, NewExpense } from "../types/expense.js";
 
 // Maps a raw database row to an Expense. Postgres returns NUMERIC as a
 // string and DATE as a JS Date, so both need converting to match the type.
-function toExpense(row: {
+export function toExpense(row: {
 	id: string;
 	description: string;
 	amount: string;

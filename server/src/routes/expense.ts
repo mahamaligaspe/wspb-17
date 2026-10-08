@@ -9,7 +9,7 @@ import type { NewExpense } from "../types/expense.js";
 
 // Validates and narrows an unknown request body into a NewExpense,
 // or returns null if any required field is missing/wrong type.
-function parseNewExpense(body: unknown): NewExpense | null {
+export function parseNewExpense(body: unknown): NewExpense | null {
 	const { description, amount, date } = body as Partial<NewExpense>;
 
 	if (
