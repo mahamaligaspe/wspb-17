@@ -2,6 +2,7 @@ stages:
   - lint
   - build
   - test
+  - e2e
 
 # Lint the client.
 lint-client:
@@ -65,3 +66,36 @@ test-server:
     - cd server
     - npm ci
     - npm test
+
+test-e2e:
+  stage: e2e
+  # This image ships with browsers preinstalled; Playwright needs one.
+  # The tag matches the @playwright/test version in client/package-lock.json.
+  image: mcr.microsoft.com/playwright:v1.64.0-noble
+  services:
+    - name: postgres:16
+  variables:
+    POSTGRES_USER: app
+    POSTGRES_PASSWORD: app_pw
+    POSTGRES_DB: app_db
+    PGHOST: postgres
+    PGPORT: "5432"
+    PGUSER: app
+    PGPASSWORD: app_pw
+    PGDATABASE: app_db
+    # Point the E2E tests at the served client (the tests never change,
+    # only this URL does).
+    E2E_BASE_URL: "http://localhost:4173"
+  script:
+    - apt-get update && apt-get install -y postgresql-client
+    - psql -h postgres -U app -d app_db -f db/init/001-schema.sql
+    # Start the server in the background against the database.
+    - cd server && npm ci
+    - npm run start:ci &
+    # Build and serve the client in the background.
+    - cd ../client && npm ci
+    - npm run build
+    - npx vite preview --port 4173 --host &
+    # Give both a moment to come up, then run the browser tests.
+    - sleep 5
+    - npx playwright test
