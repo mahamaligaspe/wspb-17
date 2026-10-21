@@ -19,3 +19,21 @@ build-client:
     - cd client
     - npm ci
     - npm run build
+
+# Lint the server. Runs in parallel with lint-client.
+lint-server:
+  stage: lint
+  image: node:22
+  script:
+    - cd server
+    - npm ci
+    - npm run lint
+
+# Compile the server. Fails if the TypeScript doesn't type-check.
+build-server:
+  stage: build
+  image: node:22
+  script:
+    - cd server
+    - npm ci
+    - npm run build
