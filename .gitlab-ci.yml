@@ -1,6 +1,7 @@
 stages:
   - lint
   - build
+  - test
 
 # Lint the client.
 lint-client:
@@ -37,3 +38,30 @@ build-server:
     - cd server
     - npm ci
     - npm run build
+
+test-server:
+  stage: test
+  image: node:22
+  # A PostgreSQL container runs alongside this job, reachable as "postgres".
+  services:
+    - name: postgres:16
+  variables:
+    # These configure the postgres service container on startup...
+    POSTGRES_USER: app
+    POSTGRES_PASSWORD: app_pw
+    POSTGRES_DB: app_test_db
+    # ...and these tell the tests where to find it. PGHOST is "postgres",
+    # the service's hostname, NOT localhost.
+    PGHOST: postgres
+    PGPORT: "5432"
+    PGUSER: app
+    PGPASSWORD: app_pw
+    PGDATABASE: app_test_db
+  script:
+    # The service creates the database but does NOT load our schema, so we
+    # load it ourselves before the tests run.
+    - apt-get update && apt-get install -y postgresql-client
+    - psql -h postgres -U app -d app_test_db -f db/init/001-schema.sql
+    - cd server
+    - npm ci
+    - npm test
