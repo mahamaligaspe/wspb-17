@@ -3,6 +3,7 @@ stages:
   - integration tests
   - e2e tests
   - publish
+  - deploy
 
 # Lint the client.
 lint-client:
@@ -147,3 +148,53 @@ publish-client:
     - docker tag "$IMAGE:$CI_COMMIT_SHORT_SHA" "$IMAGE:$VERSION"
     - docker push "$IMAGE:$CI_COMMIT_SHORT_SHA"
     - docker push "$IMAGE:$VERSION"
+
+# Deploy the JUST-PUBLISHED images to the staging VM via SSH.
+# There is no `docker build` here - deployment moves and starts the artifact,
+# it never rebuilds it. The runner is on campus, so it reaches the VM directly.
+deploy-staging:
+  stage: deploy
+  image: docker:27
+  # Only from main, and only after the publish jobs succeeded.
+  needs:
+    - publish-server
+    - publish-client
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  environment:
+    name: staging
+    url: http://$REMOTE_SERVER
+  before_script:
+    # The runner image is minimal; add SSH and rsync.
+    - apk add --no-cache openssh-client rsync
+  script:
+    # 1. Set up SSH as the deploy user (key comes in base64-encoded).
+    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+    - echo "$DEPLOY_KEY_PRIVATE" | base64 -d > ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa
+    - ssh-keyscan -H "$REMOTE_SERVER" >> ~/.ssh/known_hosts
+    # 2. Assemble the stack: the compose file + a generated .env that names
+    #    the EXACT images published this run, plus the runtime API_URL.
+    - mkdir -p stage_stack/db
+    - cp docker-compose.staging.yml stage_stack/docker-compose.yml
+    # Ship the schema so Postgres seeds it on first boot (initdb.d mount).
+    - cp db/init/001-schema.sql stage_stack/db/001-staging-schema.sql
+    - echo "SERVER_IMAGE=$CI_REGISTRY_IMAGE/server:$CI_COMMIT_SHORT_SHA" >  stage_stack/.env
+    - echo "CLIENT_IMAGE=$CI_REGISTRY_IMAGE/client:$CI_COMMIT_SHORT_SHA" >> stage_stack/.env
+    - echo "API_URL=http://$REMOTE_SERVER:3001"                          >> stage_stack/.env
+    # Source vars are STAGING_PG* so they don't collide with the test jobs'
+    # PG* - written into .env as the PG* names the stack expects.
+    - echo "PGUSER=$STAGING_PGUSER"                                      >> stage_stack/.env
+    - echo "PGPASSWORD=$STAGING_PGPASSWORD"                              >> stage_stack/.env
+    - echo "PGDATABASE=$STAGING_PGDATABASE"                              >> stage_stack/.env
+    # 3. Ship the stack to the deploy user's home on the VM.
+    - rsync -r stage_stack "$REMOTE_USER@$REMOTE_SERVER:./"
+    # 4. Start it on the server: log in to the registry with the job's own
+    #    token, pull, up -d.
+    - |
+      ssh "$REMOTE_USER@$REMOTE_SERVER" "
+        docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY &&
+        cd stage_stack &&
+        docker compose pull &&
+        docker compose up -d
+      "
