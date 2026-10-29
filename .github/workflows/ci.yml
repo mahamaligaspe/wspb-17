@@ -1,0 +1,75 @@
+name: CI
+
+# Same lint -> build -> test pipeline as .gitlab-ci.yml, on every push and PR.
+on:
+  push:
+  pull_request:
+
+jobs:
+  # Lint client and server in parallel (GitLab: lint-client + lint-server).
+  lint:
+    runs-on: ubuntu-latest
+    # GitLab's `image: node:22` - the steps run inside this container.
+    container: node:22
+    strategy:
+      matrix:
+        package: [client, server]
+    steps:
+      # GitLab's runner checks out the repo automatically; here it's a step.
+      - uses: actions/checkout@v4
+      - run: npm ci
+        working-directory: ${{ matrix.package }}
+      - run: npm run lint
+        working-directory: ${{ matrix.package }}
+
+  # Build both packages. `needs:` replaces GitLab's stage ordering.
+  build:
+    needs: lint
+    runs-on: ubuntu-latest
+    container: node:22
+    strategy:
+      matrix:
+        package: [client, server]
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+        working-directory: ${{ matrix.package }}
+      - run: npm run build
+        working-directory: ${{ matrix.package }}
+
+  # Server tests against a real Postgres (GitLab: test-server).
+  test-server:
+    needs: build
+    runs-on: ubuntu-latest
+    # Running in a container puts the job on the same Docker network as the
+    # service, so the service is reachable by its name "postgres" - like GitLab.
+    container: node:22
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: app_pw
+          POSTGRES_DB: app_test_db
+        # GitHub doesn't wait for the database to accept connections on its own;
+        # the health check holds the job until Postgres is ready.
+        options: >-
+          --health-cmd "pg_isready -U app -d app_test_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: app
+      PGPASSWORD: app_pw
+      PGDATABASE: app_test_db
+    steps:
+      - uses: actions/checkout@v4
+      # The service creates the database but not our schema - load it first.
+      - run: apt-get update && apt-get install -y postgresql-client
+      - run: psql -h postgres -U app -d app_test_db -f db/init/001-schema.sql
+      - run: npm ci
+        working-directory: server
+      - run: npm test
+        working-directory: server
