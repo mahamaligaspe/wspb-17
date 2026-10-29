@@ -1,0 +1,44 @@
+# Runs the images the pipeline PUBLISHED - note: no `build:` anywhere.
+# Image tags and API_URL come from the .env the deploy job generates.
+services:
+  server:
+    image: ${SERVER_IMAGE}        # e.g. registry.../server:a1b2c3d4
+    restart: always
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: production
+      PGHOST: db
+      PGPORT: 5432                # server/src/db/pool.ts reads PGPORT
+      PGUSER: ${PGUSER}
+      PGPASSWORD: ${PGPASSWORD}
+      PGDATABASE: ${PGDATABASE}
+    depends_on:
+      db:
+        condition: service_healthy   # wait until the DB is up AND seeded
+  client:
+    image: ${CLIENT_IMAGE}        # e.g. registry.../client:a1b2c3d4
+    restart: always
+    ports:
+      - "80:80"
+    environment:
+      API_URL: ${API_URL}         # read at container start -> config.js
+  db:
+    image: postgres:16
+    restart: always
+    environment:
+      POSTGRES_USER: ${PGUSER}
+      POSTGRES_PASSWORD: ${PGPASSWORD}
+      POSTGRES_DB: ${PGDATABASE}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Run ONCE, when the data volume is first created - seeds the schema.
+      # The deploy job copies db/init/001-schema.sql here as 001-staging-schema.sql.
+      - ./db/001-staging-schema.sql:/docker-entrypoint-initdb.d/001-staging-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+volumes:
+  pgdata:
